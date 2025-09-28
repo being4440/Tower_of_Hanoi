@@ -30,7 +30,43 @@ cd path\to\emsdk
 emsdk install latest
 emsdk activate latest
 emsdk_env.bat
---
+ ```
 ##Compile C to WASM
+```bat
+emcc hanoi.c -o hanoi.js -s EXPORTED_FUNCTIONS='["_run_hanoi","_get_move_from","_get_move_to"]' -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]
+ ```
 
-emcc hanoi.c -o hanoi.js -s EXPORTED_FUNCTIONS='["_run_hanoi","_get_move_from","_get_move_to"]' -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]'
+### 1. Install Emscripten
+
+python -m http.server 8080
+
+4. Open in Browser
+Visit:
+http://localhost:8080/front.html?n=4
+
+n is the number of disks (adjustable)
+
+Folder Structure
+ ```
+hanoi_web/
+├─ hanoi.c           # C implementation of Tower of Hanoi
+├─ hanoi.js          # WASM JS glue file
+├─ hanoi.wasm        # Compiled WebAssembly module
+├─ front.html        # HTML frontend with inline styles
+├─ emsdk/            # Emscripten SDK (optional, for building WASM)
+├─ build_wasm.cmd    # Optional build script
+└─ run_all.cmd       # Optional run script
+ ```
+
+How it Works
+
+C Logic: Calculates the sequence of moves recursively.
+WebAssembly: Converts C code to browser-compatible module.
+Frontend: Animates disks according to the move sequence using JavaScript and inline CSS.
+
+Notes
+
+Demonstrates data structures (stack, recursion) in C.
+HTML/JS is used only for visualization; the algorithm is entirely in C.
+Works on any modern browser with WASM support.
+
