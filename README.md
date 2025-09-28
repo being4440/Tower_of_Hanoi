@@ -70,3 +70,5 @@ Demonstrates data structures (stack, recursion) in C.
 HTML/JS is used only for visualization; the algorithm is entirely in C.
 Works on any modern browser with WASM support.
 
+working  video 
+https://drive.google.com/file/d/1eux7ZdM0QdmmR6MYU6CcdOu_XOoIwtPE/view?usp=sharing
