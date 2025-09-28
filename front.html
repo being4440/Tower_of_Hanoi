@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tower of Hanoi</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; }
+    #pegs { display: flex; justify-content: center; margin-top: 50px; }
+    .peg {
+      position: relative; width: 150px; height: 300px;
+      border-bottom: 5px solid #444; margin: 0 20px;
+    }
+    .rod {
+      position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 10px; height: 250px; background: #444;
+    }
+    .disk {
+      position: absolute; height: 20px; border-radius: 4px;
+      background: tomato; transition: all 0.5s ease;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎯 Tower of Hanoi</h1>
+  <button onclick="start()">Start</button>
+  <div id="status" style="margin-top:10px;color:#555"></div>
+
+  <!-- Info panel: current move / total moves -->
+  <div id="info-panel" style="position:fixed;right:16px;top:80px;width:200px;background:#f7f7f7;border:1px solid #ddd;padding:12px;border-radius:8px;text-align:left;box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+    <div style="font-size:14px;color:#666;margin-bottom:8px;">Run info</div>
+    <div id="moveCounter" style="font-size:20px;font-weight:700;color:#222;">Move: 0</div>
+    <div id="moveDetail" style="font-size:13px;color:#444;margin-top:6px;">—</div>
+    <hr style="margin:8px 0;border:none;border-top:1px solid #eee" />
+    <div id="totalMoves" style="font-size:14px;font-weight:600;color:#333">Total moves: 0</div>
+  </div>
+  <div id="pegs">
+    <div class="peg" id="peg0"><div class="rod"></div></div>
+    <div class="peg" id="peg1"><div class="rod"></div></div>
+    <div class="peg" id="peg2"><div class="rod"></div></div>
+  </div>
+
+  <script>
+    // Try to load the WebAssembly module first (hanoi.js). If unavailable,
+    // fall back to fetching a pre-generated moves.json file.
+    let wasmAvailable = false;
+    const Module = {
+      locateFile: function(path) {
+        console.log('Module.locateFile called for', path);
+        return path;
+      },
+      onRuntimeInitialized: () => {
+        wasmAvailable = true;
+        document.getElementById('status').textContent = 'WASM initialized (using algo.c)';
+        console.log('WASM ready!');
+      }
+    };
+
+    // Dynamically load hanoi.js so missing file doesn't break the page.
+    (function tryLoadWasm() {
+      const s = document.createElement('script');
+      s.src = 'hanoi.js';
+      s.onload = () => { console.log('Loaded hanoi.js'); };
+      s.onerror = () => { console.warn('hanoi.js not found — will use moves.json fallback'); };
+      document.head.appendChild(s);
+    })();
+
+  let moves = [], current = 0, disks = [], pegs = [[],[],[]];
+
+    function init() {
+      // noop — Module.onRuntimeInitialized handles wasmAvailable flag.
+    }
+
+    function getQueryParam(name, defaultValue) {
+      const params = new URLSearchParams(window.location.search);
+      return params.has(name) ? parseInt(params.get(name), 10) || defaultValue : defaultValue;
+    }
+
+    function start() {
+      let n = getQueryParam('n', 4); // number of disks from query string
+      document.getElementById('status').textContent = `Starting with n=${n}`;
+
+      if (wasmAvailable && typeof Module.cwrap === 'function') {
+        try {
+          let run_hanoi = Module.cwrap('run_hanoi', 'number', ['number']);
+          let get_from = Module.cwrap('get_move_from', 'number', ['number']);
+          let get_to = Module.cwrap('get_move_to', 'number', ['number']);
+
+          let count = run_hanoi(n);
+          moves = [];
+          for (let i = 0; i < count; i++) moves.push([get_from(i), get_to(i)]);
+          current = 0;
+          setupDisks(n);
+          updateInfo();
+          animate();
+          return;
+        } catch (e) {
+          console.error('WASM call failed, falling back to JSON:', e);
+          document.getElementById('status').textContent = 'WASM failed at runtime — falling back to moves.json';
+        }
+      }
+
+      // Fallback: fetch precomputed moves.json
+  document.getElementById('status').textContent = 'Using moves.json fallback';
+      fetch('moves.json')
+        .then(r => r.json())
+        .then(j => {
+          moves = j.moves || [];
+          current = 0;
+          setupDisks(n);
+          updateInfo();
+          animate();
+        })
+        .catch(err => {
+          console.error('Failed to load moves.json', err);
+          alert('Cannot start: no WASM module and no moves.json fallback found.');
+        });
+    }
+
+    function setupDisks(n) {
+      for (let p=0;p<3;p++) {
+        document.getElementById('peg'+p).querySelectorAll('.disk').forEach(d=>d.remove());
+        pegs[p]=[];
+      }
+      disks=[];
+      for (let i=n;i>=1;i--) {
+        let disk=document.createElement('div');
+        disk.className='disk';
+        disk.style.width=(30+i*20)+'px';
+        disk.style.background=`hsl(${i*40},70%,60%)`;
+        document.getElementById('peg0').appendChild(disk);
+        pegs[0].push(disk);
+        disks.push(disk);
+      }
+      updatePositions();
+    }
+
+    function updatePositions() {
+      for (let p=0;p<3;p++) {
+        pegs[p].forEach((disk, idx)=>{
+          disk.style.left='50%';
+          disk.style.transform='translateX(-50%)';
+          disk.style.bottom=(idx*22)+'px';
+        });
+      }
+    }
+
+    function animate() {
+      if (current >= moves.length) return;
+      let [from,to]=moves[current++];
+      let disk=pegs[from].pop();
+      pegs[to].push(disk);
+      document.getElementById('peg'+to).appendChild(disk);
+      updatePositions();
+      updateInfo();
+      setTimeout(animate, 600);
+    }
+
+    function updateInfo() {
+      const total = moves.length || 0;
+      const cur = Math.min(current, total);
+      document.getElementById('moveCounter').textContent = `Move: ${cur}`;
+      document.getElementById('totalMoves').textContent = `Total moves: ${total}`;
+      if (cur > 0 && cur <= total) {
+        const [f,t] = moves[cur-1];
+        document.getElementById('moveDetail').textContent = `Last: ${f} → ${t}`;
+      } else {
+        document.getElementById('moveDetail').textContent = '—';
+      }
+    }
+  </script>
+</body>
+</html>
